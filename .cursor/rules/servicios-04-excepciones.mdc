@@ -1,0 +1,251 @@
+---
+description: Manejo de excepciones personalizadas con códigos de error estandarizados
+globs: ["**/exception/**/*.java", "**/controller/ExceptionHandlerController.java"]
+alwaysApply: true
+---
+
+# ⚠️ Manejo de Excepciones Personalizadas
+
+## 📋 TL;DR
+
+- ✅ Una excepción personalizada por funcionalidad (extends `RuntimeException`)
+- ✅ Código de error formato: `TDTC-XX-NNNN`
+- ✅ Constantes en `Constants.java`
+- ✅ Handler en `ExceptionHandlerController`
+- ✅ **Clean Code:** Excepciones de negocio se propagan automáticamente - NO capturarlas si solo se relanzan
+- ✅ **Solo capturar excepciones técnicas** para convertirlas a negocio
+- ✅ **Handlers con ≥3 condiciones:** Extraer determinación de HttpStatus en método privado con JavaDoc
+- ✅ **Para módulos completos:** Organizar en `exception/{modulo}/`
+- ❌ NO usar excepciones genéricas
+- ❌ NO usar `catch (BusinessException e) { throw e; }` (antipatrón)
+- ❌ NO usar operadores ternarios anidados en handlers
+
+## 🚨 Reglas Principales
+
+1. Cada funcionalidad tiene su propia excepción (`*Exception extends RuntimeException`)
+2. Incluir campo `errorCode` con formato `TDTC-XX-NNNN`
+3. Dos constructores: simple (mensaje + código) y con causa (mensaje + código + Throwable)
+4. Constantes de mensajes y códigos en `Constants.java`
+5. Handler específico en `ExceptionHandlerController` con `@ExceptionHandler`
+6. **Clean Code:** Excepciones de negocio (`RuntimeException`) NO se capturan si solo se relanzan - se propagan automáticamente
+7. **Solo capturar excepciones técnicas** (`IOException`, `SQLException`, `IllegalStateException`) para convertirlas a excepciones de negocio
+8. **Handlers complejos (≥3 condiciones):** Extraer lógica de determinación de HttpStatus en método privado con JavaDoc descriptivo
+9. **Para módulos completos:** Organizar en `exception/{modulo}/` (ver Organización Modular)
+
+## 📊 Referencia Rápida - Formato de Códigos
+
+| Módulo | Prefijo | Ejemplo | Descripción |
+|--------|---------|---------|-------------|
+| Short URL | `TDTC-SU-` | `TDTC-SU-0001` | Errores de acortamiento de URLs |
+| Transaction | `TDTC-TX-` | `TDTC-TX-0001` | Errores de transacciones |
+| Cumulus | `TDTC-CU-` | `TDTC-CU-0001` | Errores de cúmulos/acumulación |
+| Parameter | `TDTC-PA-` | `TDTC-PA-0001` | Errores de parametrización |
+
+**Formato**: `TDTC-XX-NNNN`
+- `TDTC` = Tienda Digital Transaccional Comunes
+- `XX` = Identificador del módulo (2 letras)
+- `NNNN` = Número secuencial (4 dígitos: 0001, 0002, ...)
+
+### Decisión: ¿Extraer lógica de HttpStatus?
+
+| Condiciones | Estructura | Acción |
+|---|---|---|
+| 1-2 condiciones | `if-else` simple | ✅ Mantener inline |
+| ≥3 condiciones | `if-else` múltiple o ternario anidado | 🚨 **EXTRAER en método privado** |
+| Lógica reutilizable | Cualquiera | ✅ Extraer en método privado |
+| Lógica testeable | Cualquiera | ✅ Extraer en método privado |
+
+**Beneficios de extracción:**
+- 🎯 **SRP**: Handler solo construye Response, método privado determina status
+- 🎯 **Legibilidad**: Estructura if-return clara vs ternario anidado
+- 🎯 **Testeable**: Método independiente puede testearse aisladamente
+- 🎯 **Mantenible**: Agregar códigos = agregar un `if` simple
+
+## ✅ Ejemplos
+
+### Ejemplo 1: Crear Excepción Personalizada
+
+```java
+package com.bolivar.tienda.digital.transaccional.comunes.ms.exception;
+
+import lombok.Getter;
+
+/**
+ * Excepción personalizada para operaciones de acortamiento de URLs.
+ * Se lanza cuando ocurren errores en el proceso de acortamiento de URLs,
+ * tales como errores de parametrización, servicio externo o almacenamiento.
+ *
+ * @author Team Tienda Digital
+ * @since 1.0.0
+ */
+@Getter
+public class ShortUrlException extends RuntimeException {
+
+    /**
+     * Código de error específico de la excepción
+     */
+    private final String errorCode;
+
+    /**
+     * Constructor para crear una excepción con mensaje y código de error.
+     *
+     * @param message Mensaje descriptivo del error
+     * @param errorCode Código de error específico (ver Constants.CODE_*)
+     */
+    public ShortUrlException(String message, String errorCode) {
+        super(message);
+        this.errorCode = errorCode;
+    }
+
+    /**
+     * Constructor para crear una excepción con mensaje, código de error y causa.
+     *
+     * @param message Mensaje descriptivo del error
+     * @param errorCode Código de error específico (ver Constants.CODE_*)
+     * @param cause Excepción original que causó este error
+     */
+    public ShortUrlException(String message, String errorCode, Throwable cause) {
+        super(message, cause);
+        this.errorCode = errorCode;
+    }
+}
+```
+
+### Ejemplo 2: Definir Constantes
+
+```java
+public class Constants {
+    
+    // Short URL - Error Messages
+    public static final String ERROR_SHORT_URL_SAVE = "Error al guardar URL acortada en base de datos";
+    public static final String ERROR_SHORT_URL_EXTERNAL_SERVICE = "Error al llamar servicio externo de acortamiento";
+    public static final String ERROR_SHORT_URL_PARAMETRIZACION = "Error al resolver parámetros de configuración";
+    
+    // Short URL - Error Codes
+    public static final String CODE_PARAMETRIZACION_NOT_FOUND = "TDTC-SU-0001";
+    public static final String CODE_EXTERNAL_SERVICE_ERROR = "TDTC-SU-0002";
+    public static final String CODE_DATABASE_ERROR = "TDTC-SU-0003";
+}
+```
+
+### Ejemplo 3: Clean Code - Propagación Natural de Excepciones
+
+**Principio:** Excepciones de negocio (`RuntimeException`) se propagan automáticamente. SOLO capturar excepciones técnicas para convertirlas.
+
+| Situación | Acción | Justificación |
+|---|---|---|
+| `CartException`, `ProductException` | ❌ NO capturar | Se propagan automáticamente |
+| `IOException`, `SQLException` | ✅ Capturar y convertir | Excepciones técnicas |
+| `catch (E e) { throw e; }` | ❌ Antipatrón | No agrega valor |
+| Logging antes de propagar | ✅ Válido | Agrega contexto |
+
+**Ejemplo - Conversión de técnica a negocio:**
+```java
+public String shortenUrl(String longUrl) {
+    try {
+        return urlShortenerClient.shortenUrl(longUrl);
+    } catch (FeignException e) {  // ✅ Técnica → negocio
+        log.error("Error servicio externo: {}", e.getMessage());
+        throw new ShortUrlException(ERROR_EXTERNAL, CODE_EXTERNAL, e);
+    }
+}
+```
+
+### Ejemplo 4: Extraer Lógica de HttpStatus en Método Privado (≥3 condiciones)
+
+**Tabla comparativa:**
+
+| Aspecto | ❌ Ternario Anidado | ✅ Método Privado |
+|---|---|---|
+| Líneas en handler | 15 | 1 |
+| Legibilidad | Difícil | Clara |
+| Mantenibilidad | Agregar código complejo | Agregar `if` simple |
+| Testeable | Solo con handler | Independiente |
+
+**Código optimizado:**
+```java
+@ExceptionHandler({CartException.class})
+public Response<Object> handleCartException(CartException e, HttpServletRequest request) {
+    log.error("CartException: URL={} | Code={} | Msg={}", 
+            request.getRequestURI(), e.getErrorCode(), e.getMessage());
+    
+    HttpStatus status = determineCartExceptionStatus(e.getErrorCode());  // ✅ Delega
+    
+    return Response.builder()
+            .failure(true)
+            .code(status.value())
+            .errorCode(e.getErrorCode())
+            .message(e.getMessage())
+            .timestamp(String.valueOf(System.currentTimeMillis()))
+            .build();
+}
+
+private HttpStatus determineCartExceptionStatus(String errorCode) {
+    if (CODE_NOT_FOUND_CODES.contains(errorCode)) return HttpStatus.NOT_FOUND;
+    if (CODE_CART_AUTH_REQUIRED.equals(errorCode)) return HttpStatus.UNAUTHORIZED;
+    if (CODE_USER_NOT_CLIENT.equals(errorCode)) return HttpStatus.FORBIDDEN;
+    return HttpStatus.BAD_REQUEST;
+}
+```
+
+## 🚫 Restricciones
+
+1. **NO** usar excepciones genéricas (`RuntimeException`, `Exception`) - crear personalizadas con `errorCode`
+2. **NO** capturar excepciones de negocio solo para relanzarlas (`catch (E e) { throw e; }`)
+3. **NO** usar `catch (Exception e)` genérico que oculta excepciones específicas
+4. **NO** hardcodear mensajes de error (usar `Constants.java`)
+5. **NO** perder contexto de causa raíz (constructor con `Throwable cause`)
+6. **NO** omitir logs al convertir excepciones técnicas a negocio
+7. **NO** usar códigos sin formato `TDTC-XX-NNNN` ni duplicarlos entre módulos
+8. **NO** omitir JavaDoc en excepciones personalizadas
+9. **NO** crear excepciones de módulos completos en raíz `exception/` (usar `exception/{modulo}/`)
+10. **NO** usar operadores ternarios anidados (≥3 condiciones) en handlers - extraer método privado
+
+## 📦 Organización Modular de Excepciones
+
+### Cuándo Usar Paquetes Específicos
+
+| Criterio | Raíz `exception/` | Paquete `exception/{modulo}/` |
+|----------|-------------------|-------------------------------|
+| Excepción transversal | ✅ Sí (ej: `AllieException`) | ❌ No |
+| Excepción de módulo simple | ✅ Sí (ej: `CipherException`) | ❌ No |
+| **Excepción de módulo completo** | ❌ No | ✅ Sí (controller + service + dto) |
+| Múltiples excepciones relacionadas | ❌ No | ✅ Sí (agrupar en paquete) |
+
+**Estructura Modular:**
+```
+exception/
+├── {modulo}/
+│   └── {Modulo}Exception.java
+└── ExceptionHandlerController.java (raíz, handler global)
+```
+
+**Import correcto:**
+```java
+// ✅ CORRECTO: Import desde paquete específico
+import com.bolivar.tiendaseguros.ms.exception.processconfig.ProcessConfigurationException;
+```
+
+## ✅ Validación Automática
+
+Cursor debe detectar:
+
+- ❌ `catch (E e) { throw e; }` - Capturar solo para relanzar
+- ❌ `catch (Exception e)` genérico que oculta excepciones específicas
+- ❌ `throw new RuntimeException(...)` sin excepción personalizada
+- ❌ Mensajes hardcodeados: `throw new Exception("Error al...")`
+- ❌ Excepciones sin campo `errorCode` o sin constructor con `Throwable cause`
+- ❌ Códigos sin formato `TDTC-XX-NNNN` o duplicados
+- ❌ Handlers sin `@ExceptionHandler` o sin logs
+- ❌ Operadores ternarios anidados (≥3 condiciones) sin extraer método privado
+
+## 🎯 Objetivo + Regla de Oro
+
+**Objetivo**: Manejo consistente de errores con trazabilidad completa mediante códigos únicos y contexto detallado, siguiendo principios de Clean Code.
+
+**REGLA DE ORO**: "Una excepción por funcionalidad con código `TDTC-XX-NNNN`. Excepciones de negocio (`RuntimeException`) se propagan automáticamente - NO capturarlas. SOLO capturar técnicas (`IOException`, `SQLException`) para convertir a negocio. Handlers con ≥3 condiciones → extraer método privado."
+
+---
+
+> **Ver también**: 
+> - [servicios-01-creacion-servicios.mdc](./servicios-01-creacion-servicios.mdc) - Uso en servicios

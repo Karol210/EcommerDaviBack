@@ -1,0 +1,464 @@
+{
+	"info": {
+		"_postman_id": "stock-api-2025",
+		"name": "Stock API - Ecommerce Davivienda",
+		"description": "Colección completa de endpoints para gestión de inventario/stock y validación de disponibilidad de productos.\n\n**Arquitectura:**\n- Servicio unificado: StockService (CRUD + Validación)\n- Capacidades internas: validation, transactional, mapper, auth\n- Organización por dominios: cart, stock\n- Autenticación: Token JWT para identificar usuario\n\n**Endpoints disponibles:**\n1. GET /api/v1/stock/validate - Valida stock del carrito del usuario autenticado\n2. CRUD de inventario (futuro)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Stock Validation",
+			"item": [
+				{
+					"name": "Validar Stock - Éxito (Stock Suficiente)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code es 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response tiene estructura correcta\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('failure');",
+									"    pm.expect(jsonData).to.have.property('code');",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"    pm.expect(jsonData).to.have.property('body');",
+									"    pm.expect(jsonData).to.have.property('timestamp');",
+									"});",
+									"",
+									"pm.test(\"Stock está disponible\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.body.available).to.eql(true);",
+									"    pm.expect(jsonData.body.productsWithIssues).to.eql(0);",
+									"    pm.expect(jsonData.body.insufficientStockProducts).to.be.an('array').that.is.empty;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}",
+								"description": "Token JWT del usuario autenticado (Cliente)"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/stock/validate",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"stock",
+								"validate"
+							]
+						},
+						"description": "Valida que todos los productos del carrito del usuario autenticado tengan stock suficiente.\n\n**Autenticación:** Requiere token JWT en header Authorization\n\n**Flujo:**\n1. Extrae userRoleId del token JWT\n2. Obtiene el carrito del usuario\n3. Valida stock de cada producto\n4. Retorna resultado con available=true/false\n\n**Escenario:** Usuario con carrito que tiene productos con stock disponible.\n\n**Response esperado:** 200 OK con available=true"
+					},
+					"response": [
+						{
+							"name": "200 OK - Stock Suficiente",
+							"originalRequest": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{jwt_token}}",
+										"description": "Token JWT del usuario autenticado"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/stock/validate",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"stock",
+										"validate"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"failure\": false,\n    \"code\": 200,\n    \"message\": \"Todos los productos tienen stock suficiente\",\n    \"body\": {\n        \"available\": true,\n        \"message\": \"Todos los productos tienen stock suficiente\",\n        \"insufficientStockProducts\": [],\n        \"totalProductsInCart\": 3,\n        \"productsWithIssues\": 0\n    },\n    \"timestamp\": \"1699876543210\"\n}"
+						}
+					]
+				},
+				{
+					"name": "Validar Stock - Stock Insuficiente",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code es 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response tiene estructura correcta\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('failure');",
+									"    pm.expect(jsonData).to.have.property('code');",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"    pm.expect(jsonData).to.have.property('body');",
+									"});",
+									"",
+									"pm.test(\"Stock NO está disponible\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.body.available).to.eql(false);",
+									"    pm.expect(jsonData.body.productsWithIssues).to.be.above(0);",
+									"    pm.expect(jsonData.body.insufficientStockProducts).to.be.an('array').that.is.not.empty;",
+									"});",
+									"",
+									"pm.test(\"Productos sin stock tienen estructura correcta\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    var product = jsonData.body.insufficientStockProducts[0];",
+									"    pm.expect(product).to.have.property('productId');",
+									"    pm.expect(product).to.have.property('productName');",
+									"    pm.expect(product).to.have.property('requestedQuantity');",
+									"    pm.expect(product).to.have.property('availableQuantity');",
+									"    pm.expect(product).to.have.property('missingQuantity');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}",
+								"description": "Token JWT del usuario autenticado"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/stock/validate",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"stock",
+								"validate"
+							]
+						},
+						"description": "Valida que todos los productos del carrito del usuario autenticado tengan stock suficiente.\n\n**Escenario:** Usuario con carrito que tiene productos SIN stock suficiente.\n\n**Response esperado:** 200 OK con available=false y lista de productos faltantes\n\n**Nota:** Siempre retorna 200 OK. El campo 'available' indica si puede proceder con la compra."
+					},
+					"response": [
+						{
+							"name": "200 OK - Stock Insuficiente",
+							"originalRequest": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{jwt_token}}",
+										"description": "Token JWT del usuario autenticado"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/stock/validate",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"stock",
+										"validate"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"failure\": false,\n    \"code\": 200,\n    \"message\": \"Stock insuficiente para 2 producto(s)\",\n    \"body\": {\n        \"available\": false,\n        \"message\": \"Stock insuficiente para 2 producto(s)\",\n        \"insufficientStockProducts\": [\n            {\n                \"productId\": 5,\n                \"productName\": \"Laptop Dell XPS 15\",\n                \"requestedQuantity\": 3,\n                \"availableQuantity\": 1,\n                \"missingQuantity\": 2\n            },\n            {\n                \"productId\": 8,\n                \"productName\": \"Mouse Logitech MX Master\",\n                \"requestedQuantity\": 10,\n                \"availableQuantity\": 0,\n                \"missingQuantity\": 10\n            }\n        ],\n        \"totalProductsInCart\": 3,\n        \"productsWithIssues\": 2\n    },\n    \"timestamp\": \"1699876543210\"\n}"
+						}
+					]
+				},
+				{
+					"name": "Validar Stock - Error (Carrito Vacío)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code es 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Response tiene código de error ED-STO-03\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.errorCode).to.eql('ED-STO-03');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token_empty_cart}}",
+								"description": "Token JWT de usuario con carrito vacío"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/stock/validate",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"stock",
+								"validate"
+							]
+						},
+						"description": "Intenta validar stock cuando el usuario tiene un carrito vacío.\n\n**Escenario:** Usuario con carrito sin productos.\n\n**Response esperado:** 400 Bad Request con código ED-STO-03"
+					},
+					"response": [
+						{
+							"name": "400 Bad Request - Carrito Vacío",
+							"originalRequest": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{jwt_token_empty_cart}}",
+										"description": "Token JWT de usuario con carrito vacío"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/stock/validate",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"stock",
+										"validate"
+									]
+								}
+							},
+							"status": "Bad Request",
+							"code": 400,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"failure\": true,\n    \"code\": 400,\n    \"errorCode\": \"ED-STO-03\",\n    \"message\": \"El carrito está vacío\",\n    \"timestamp\": \"1699876543210\"\n}"
+						}
+					]
+				},
+				{
+					"name": "Validar Stock - Error (Sin Carrito)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code es 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test(\"Response tiene código de error ED-STO-04\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.errorCode).to.eql('ED-STO-04');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token_no_cart}}",
+								"description": "Token JWT de usuario sin carrito"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/stock/validate",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"stock",
+								"validate"
+							]
+						},
+						"description": "Intenta validar stock cuando el usuario no tiene carrito.\n\n**Escenario:** Usuario sin carrito creado.\n\n**Response esperado:** 404 Not Found con código ED-STO-04"
+					},
+					"response": [
+						{
+							"name": "404 Not Found - Sin Carrito",
+							"originalRequest": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{jwt_token_no_cart}}",
+										"description": "Token JWT de usuario sin carrito"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/stock/validate",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"stock",
+										"validate"
+									]
+								}
+							},
+							"status": "Not Found",
+							"code": 404,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"failure\": true,\n    \"code\": 404,\n    \"errorCode\": \"ED-STO-04\",\n    \"message\": \"Carrito no encontrado para el usuario\",\n    \"timestamp\": \"1699876543210\"\n}"
+						}
+					]
+				},
+				{
+					"name": "Validar Stock - Error (Sin Autenticación)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code es 401\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/stock/validate",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"stock",
+								"validate"
+							]
+						},
+						"description": "Intenta validar stock sin proporcionar token JWT.\n\n**Escenario:** Request sin header Authorization.\n\n**Response esperado:** 401 Unauthorized"
+					},
+					"response": [
+						{
+							"name": "401 Unauthorized - Sin Token",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/stock/validate",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"stock",
+										"validate"
+									]
+								}
+							},
+							"status": "Unauthorized",
+							"code": 401,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"failure\": true,\n    \"code\": 401,\n    \"message\": \"No autorizado - Token JWT requerido\",\n    \"timestamp\": \"1699876543210\"\n}"
+						}
+					]
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "jwt_token",
+			"value": "eyJhbGciOiJIUzI1NiJ9...",
+			"type": "string",
+			"description": "Token JWT de usuario autenticado con carrito"
+		},
+		{
+			"key": "jwt_token_empty_cart",
+			"value": "eyJhbGciOiJIUzI1NiJ9...",
+			"type": "string",
+			"description": "Token JWT de usuario con carrito vacío"
+		},
+		{
+			"key": "jwt_token_no_cart",
+			"value": "eyJhbGciOiJIUzI1NiJ9...",
+			"type": "string",
+			"description": "Token JWT de usuario sin carrito"
+		}
+	]
+}
