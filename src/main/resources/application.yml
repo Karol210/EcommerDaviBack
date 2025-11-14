@@ -15,7 +15,7 @@ spring:
   # ============================================
   datasource:
 
-    url: jdbc:postgresql://localhost:5432/ecommerceDavi
+    url: jdbc:postgresql://localhost:5432/ecommerDavi
     username: admin
     password: admin123
     driver-class-name: org.postgresql.Driver
